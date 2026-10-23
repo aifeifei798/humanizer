@@ -50,11 +50,6 @@ tailwind.config = {
 
     <!-- 工具条 -->
     <div class="flex flex-wrap items-center gap-3">
-      <button id="btn-run" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 px-6 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/25 hover:brightness-110 active:scale-[.98] transition disabled:opacity-50 disabled:pointer-events-none">
-        <svg id="run-icon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 3 14 9-14 9V3Z"/></svg>
-        <svg id="run-spinner" class="hidden w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-90" fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2Z"/></svg>
-        <span id="run-label">润 化</span>
-      </button>
       <button id="btn-sample" class="rounded-xl border border-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/60 transition">填入示例</button>
       <button id="btn-copy" class="rounded-xl border border-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/60 transition disabled:opacity-40" disabled>复制结果</button>
       <button id="btn-clear" class="rounded-xl border border-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/60 transition">清空</button>
@@ -70,6 +65,11 @@ tailwind.config = {
         种子
         <input id="opt-seed" type="number" placeholder="随机" class="w-24 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-emerald-500 focus:outline-none">
       </label>
+      <button id="btn-run" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 px-6 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/25 hover:brightness-110 active:scale-[.98] transition disabled:opacity-50 disabled:pointer-events-none">
+        <svg id="run-icon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 3 14 9-14 9V3Z"/></svg>
+        <svg id="run-spinner" class="hidden w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-90" fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2Z"/></svg>
+        <span id="run-label">润 化</span>
+      </button>
     </div>
 
     <!-- 双栏 -->
