@@ -6,14 +6,15 @@ jialinyyzz/humanizer,Gemma-4-12B 微调)提供成 HTTP 接口,把 AI 草稿改�
 ## 运行
 
 ```bash
-uv run uvicorn server:app --host 127.0.0.1 --port 8100
+./install.sh   # 安装依赖 (需要 uv); 不检查模型是否存在, 缺模型只提示
+./server.sh    # 启动, 默认 http://127.0.0.1:8100, Ctrl+C 停止
 ```
+
+等价于 `uv sync` + `uv run uvicorn server:app`。环境变量 `HUMANIZER_MODEL`(模型路径,
+默认 `/home/feifei/develop/models/humanizer`)、`HUMANIZER_HOST`、`HUMANIZER_PORT` 对两个脚本都生效。
 
 模型约 24GB(bf16),加载到 GPU(RTX 5090 D 实测占 22.3 GiB 显存),首次启动约 20 秒。
 `GET /health` 返回 `{"status":"ok"}` 即就绪。
-
-环境变量:`HUMANIZER_MODEL`(模型路径)、`HUMANIZER_HOST`、`HUMANIZER_PORT`(直接
-`python server.py` 启动时生效)。
 
 ## 网页客户端
 
