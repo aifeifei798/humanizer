@@ -114,32 +114,25 @@ const draftEl = $("draft"), outputEl = $("output"), emptyEl = $("empty-state");
 const btnRun = $("btn-run"), btnCopy = $("btn-copy"), btnClear = $("btn-clear"), btnSample = $("btn-sample");
 let running = false, lastRewrite = "";
 
-/* 身份下拉: default 必须放最前, 其余按常用度排列 */
-const IDENTITIES = [
-  ["default", "默认"],
-  ["customer_service", "客服"],
-  ["colleague", "同事 / 打工人"],
-  ["reporting_to_boss", "向上汇报"],
-  ["friend", "朋友闲聊"],
-  ["developer", "程序员"],
-  ["product_manager", "产品经理"],
-  ["hr", "人事 HR"],
-  ["sales", "销售"],
-  ["teacher", "老师"],
-  ["student", "学生"],
-  ["lawyer", "律师"],
-  ["doctor", "医生"],
-  ["journalist", "记者"],
-  ["blogger", "知乎 / 公众号博主"],
-  ["social_media", "小红书 / 微博博主"],
-  ["forum_user", "论坛网友"],
-  ["ecommerce_seller", "电商卖家回复"],
-  ["founder", "创业者"],
-  ["government", "机关公文"],
-  ["academic", "学术作者"],
+/* 身份下拉: 从 GET /identities 动态加载 (label 中文标签), 失败时用本地兜底列表 */
+const IDENTITIES_FALLBACK = [
+  ["default", "默认"], ["customer_service", "客服"], ["colleague", "同事 / 打工人"],
+  ["reporting_to_boss", "向上汇报"], ["friend", "朋友闲聊"], ["developer", "程序员"],
+  ["product_manager", "产品经理"], ["hr", "人事 HR"], ["sales", "销售"], ["teacher", "老师"],
+  ["student", "学生"], ["lawyer", "律师"], ["doctor", "医生"], ["journalist", "记者"],
+  ["blogger", "知乎 / 公众号博主"], ["social_media", "小红书 / 微博博主"],
+  ["forum_user", "论坛网友"], ["ecommerce_seller", "电商卖家回复"], ["founder", "创业者"],
+  ["government", "机关公文"], ["academic", "学术作者"],
 ];
-$("opt-identity").innerHTML = IDENTITIES.map(([v, label]) => `<option value="${v}">${label}</option>`).join("");
-$("opt-identity").value = localStorage.getItem("humanizer-identity") || "default";
+function fillIdentitySelect(list) {
+  $("opt-identity").innerHTML =
+    list.map(([v, label]) => `<option value="${v}">${label}</option>`).join("");
+  $("opt-identity").value = localStorage.getItem("humanizer-identity") || "default";
+}
+fillIdentitySelect(IDENTITIES_FALLBACK);
+fetch("/identities").then(r => r.json()).then(j => {
+  fillIdentitySelect(Object.entries(j.identities).map(([v, x]) => [v, x.label]));
+}).catch(() => {});
 $("opt-identity").addEventListener("change", e => localStorage.setItem("humanizer-identity", e.target.value));
 
 draftEl.value = localStorage.getItem("humanizer-draft") || "";

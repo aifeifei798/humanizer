@@ -33,30 +33,31 @@ MAX_LANG_RETRIES = 3           # 英文稿混入中文时最多采样 3 次 (AGE
 # prompt_format.json 里的自校验指纹: sha256(prompt for draft "X") 前 16 位
 PROMPT_FINGERPRINT = "cc51d66b4c593fbe"
 
-# 写作身份。default 保持官方 prompt 逐字节不变 (指纹校验针对它);
+# 写作身份: id -> {label 中文标签, voice 英文描述}。
+# default 保持官方 prompt 逐字节不变 (指纹校验针对它);
 # 其余身份在指令区末尾追加一句英文 voice 描述, 草稿与分隔符结构不动。
-IDENTITIES: dict[str, str | None] = {
-    "default": None,
-    "customer_service": "a patient, warm customer-service agent replying to a customer",
-    "colleague": "a colleague giving teammates a quick, candid work update",
-    "reporting_to_boss": "an employee giving their manager a respectful, well-organized progress report",
-    "product_manager": "a product manager writing clearly and pragmatically about plans and trade-offs",
-    "developer": "a software developer writing terse, direct, technical messages",
-    "hr": "an HR specialist writing friendly yet professional notices to employees",
-    "sales": "a salesperson writing an enthusiastic, helpful follow-up without being pushy",
-    "teacher": "a teacher explaining things plainly to students and parents",
-    "student": "a student writing a straightforward essay or homework answer",
-    "lawyer": "a lawyer writing precise, measured, formal prose",
-    "doctor": "a doctor explaining conditions and advice in plain, reassuring language",
-    "journalist": "a journalist writing factual, vivid reportage",
-    "blogger": "a Chinese content blogger (Zhihu/WeChat) with a personal, conversational voice",
-    "social_media": "a lively Chinese social-media poster (Xiaohongshu/Weibo) with a casual, punchy voice",
-    "forum_user": "a candid, helpful forum answerer sharing first-hand experience",
-    "ecommerce_seller": "an online-store owner replying to a customer review or question",
-    "founder": "a founder writing an honest, energizing note to the team or customers",
-    "friend": "a friend writing to a friend, completely casual",
-    "government": "a government-office staffer writing formal official-document prose",
-    "academic": "an academic researcher writing formal scholarly prose",
+IDENTITIES: dict[str, dict[str, str | None]] = {
+    "default":            {"label": "默认",              "voice": None},
+    "customer_service":   {"label": "客服",              "voice": "a patient, warm customer-service agent replying to a customer"},
+    "colleague":          {"label": "同事 / 打工人",     "voice": "a colleague giving teammates a quick, candid work update"},
+    "reporting_to_boss":  {"label": "向上汇报",          "voice": "an employee giving their manager a respectful, well-organized progress report"},
+    "friend":             {"label": "朋友闲聊",          "voice": "a friend writing to a friend, completely casual"},
+    "developer":          {"label": "程序员",            "voice": "a software developer writing terse, direct, technical messages"},
+    "product_manager":    {"label": "产品经理",          "voice": "a product manager writing clearly and pragmatically about plans and trade-offs"},
+    "hr":                 {"label": "人事 HR",           "voice": "an HR specialist writing friendly yet professional notices to employees"},
+    "sales":              {"label": "销售",              "voice": "a salesperson writing an enthusiastic, helpful follow-up without being pushy"},
+    "teacher":            {"label": "老师",              "voice": "a teacher explaining things plainly to students and parents"},
+    "student":            {"label": "学生",              "voice": "a student writing a straightforward essay or homework answer"},
+    "lawyer":             {"label": "律师",              "voice": "a lawyer writing precise, measured, formal prose"},
+    "doctor":             {"label": "医生",              "voice": "a doctor explaining conditions and advice in plain, reassuring language"},
+    "journalist":         {"label": "记者",              "voice": "a journalist writing factual, vivid reportage"},
+    "blogger":            {"label": "知乎 / 公众号博主", "voice": "a Chinese content blogger (Zhihu/WeChat) with a personal, conversational voice"},
+    "social_media":       {"label": "小红书 / 微博博主", "voice": "a lively Chinese social-media poster (Xiaohongshu/Weibo) with a casual, punchy voice"},
+    "forum_user":         {"label": "论坛网友",          "voice": "a candid, helpful forum answerer sharing first-hand experience"},
+    "ecommerce_seller":   {"label": "电商卖家回复",      "voice": "an online-store owner replying to a customer review or question"},
+    "founder":            {"label": "创业者",            "voice": "a founder writing an honest, energizing note to the team or customers"},
+    "government":         {"label": "机关公文",          "voice": "a government-office staffer writing formal official-document prose"},
+    "academic":           {"label": "学术作者",          "voice": "an academic researcher writing formal scholarly prose"},
 }
 
 with open(os.path.join(MODEL_PATH, "prompt_format.json"), encoding="utf-8") as f:
@@ -64,8 +65,12 @@ with open(os.path.join(MODEL_PATH, "prompt_format.json"), encoding="utf-8") as f
 INSTR, SEP = _PF["instr"], _PF["sep"]
 
 
+def identity_label(identity: str) -> str:
+    return IDENTITIES.get(identity, {}).get("label", identity)
+
+
 def build_prompt(draft: str, identity: str = "default") -> str:
-    voice = IDENTITIES.get(identity, IDENTITIES["default"])
+    voice = IDENTITIES.get(identity, IDENTITIES["default"])["voice"]
     instr = INSTR if voice is None else INSTR + f"\n\nWrite it in the voice of {voice}."
     return instr + "\n\n" + draft.strip() + SEP
 
@@ -171,8 +176,8 @@ def _generate_once(prompt: str, max_new_tokens: int, seed: int | None,
 
 def _humanize(text: str, identity: str, max_new_tokens: int | None, seed: int | None):
     if identity not in IDENTITIES:
-        raise HTTPException(status_code=400,
-                            detail=f"未知身份 {identity!r}, 可选: {', '.join(IDENTITIES)}")
+        opts = ", ".join(f"{v['label']}({k})" for k, v in IDENTITIES.items())
+        raise HTTPException(status_code=400, detail=f"未知身份 {identity!r}, 可选: {opts}")
     prompt = build_prompt(text, identity)
     prompt_len = len(TOK(prompt)["input_ids"])
     if prompt_len + 1 > CONTEXT_TOKENS:
