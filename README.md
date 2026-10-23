@@ -10,6 +10,10 @@ jialinyyzz/humanizer,Gemma-4-12B 微调)提供成 HTTP 接口,把 AI 草稿改�
 ./server.sh    # 启动, 默认 http://127.0.0.1:8100, Ctrl+C 停止
 ```
 
+`server.sh` 支持子命令:`./server.sh [start|stop|restart|status]`(缺省 start,前台运行)。
+重复启动会被拒绝;`stop`/`status` 按 PID 文件(`/tmp/humanizer-server-<端口>.pid`)加命令行
+匹配找到进程。
+
 等价于 `uv sync` + `uv run uvicorn server:app`。环境变量 `HUMANIZER_MODEL`(模型路径,
 默认 `/home/feifei/develop/models/humanizer`)、`HUMANIZER_HOST`、`HUMANIZER_PORT` 对两个脚本都生效。
 
