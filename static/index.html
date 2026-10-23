@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Humanizer · 把 AI 草稿改写成人的笔触</title>
+<script src="/static/vendor/tailwind.js"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    fontFamily: { sans: ['"Noto Sans SC"', '"PingFang SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'] },
+  } }
+}
+</script>
+<style>
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #334155; background-clip: content-box; }
+  .add { background: rgba(16,185,129,.16); color: #a7f3d0; border-radius: 4px; padding: 0 2px; }
+  .caret::after { content: "▍"; color: #34d399; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  textarea { field-sizing: content; }
+</style>
+</head>
+<body class="h-full bg-slate-950 text-slate-200 antialiased">
+
+<div class="min-h-full flex flex-col bg-[radial-gradient(ellipse_at_top,#0f2744_0%,#0b1120_55%)]">
+
+  <!-- 顶栏 -->
+  <header class="shrink-0 border-b border-slate-800/80 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center gap-4">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-sky-500 grid place-items-center shadow-lg shadow-emerald-500/20">
+        <svg class="w-5 h-5 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.86 17.49 18 22l-2.57-1.54L12.86 22l1.14-4.51M12 3a5.6 5.6 0 1 1 0 11.2A5.6 5.6 0 0 1 12 3ZM3 9.4 4.6 8 6 9.4 4.6 8 3 9.4Z"/>
+        </svg>
+      </div>
+      <div class="leading-tight">
+        <h1 class="text-lg font-bold tracking-tight text-white">Humanizer</h1>
+        <p class="text-xs text-slate-400">AI 草稿 → 人的笔触 · 12B 本地模型</p>
+      </div>
+      <div class="ml-auto flex items-center gap-2 text-xs">
+        <span id="health-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="health-text" class="text-slate-400">连接中…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主体 -->
+  <main class="flex-1 w-full max-w-7xl mx-auto px-6 py-6 flex flex-col gap-4">
+
+    <!-- 工具条 -->
+    <div class="flex flex-wrap items-center gap-3">
+      <button id="btn-run" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 px-6 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/25 hover:brightness-110 active:scale-[.98] transition disabled:opacity-50 disabled:pointer-events-none">
+        <svg id="run-icon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 3 14 9-14 9V3Z"/></svg>
+        <svg id="run-spinner" class="hidden w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-90" fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2Z"/></svg>
+        <span id="run-label">润 化</span>
+      </button>
+      <button id="btn-sample" class="rounded-xl border border-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/60 transition">填入示例</button>
+      <button id="btn-copy" class="rounded-xl border border-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/60 transition disabled:opacity-40" disabled>复制结果</button>
+      <button id="btn-clear" class="rounded-xl border border-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/60 transition">清空</button>
+
+      <label class="ml-auto flex items-center gap-2 text-sm text-slate-300 select-none cursor-pointer">
+        <input id="opt-stream" type="checkbox" checked class="accent-emerald-500 w-4 h-4">流式输出
+      </label>
+      <label class="flex items-center gap-2 text-sm text-slate-400">
+        种子
+        <input id="opt-seed" type="number" placeholder="随机" class="w-24 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-emerald-500 focus:outline-none">
+      </label>
+    </div>
+
+    <!-- 双栏 -->
+    <div class="grid lg:grid-cols-2 gap-4 flex-1 min-h-[28rem]">
+      <!-- 草稿 -->
+      <section class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-slate-800/80">
+          <h2 class="text-sm font-semibold text-slate-300">草稿 <span class="ml-1 font-normal text-slate-500">AI 写的原文</span></h2>
+          <span id="draft-count" class="text-xs text-slate-500">0 字</span>
+        </div>
+        <textarea id="draft" placeholder="把 AI 生成的草稿粘贴到这里…&#10;&#10;支持中英文。模型会保留所有事实、数字、日期、姓名和引文。" spellcheck="false"
+          class="flex-1 resize-none bg-transparent px-5 py-4 text-[15px] leading-7 text-slate-200 placeholder-slate-600 focus:outline-none"></textarea>
+      </section>
+
+      <!-- 改写 -->
+      <section class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-slate-800/80">
+          <h2 class="text-sm font-semibold text-slate-300">改写 <span class="ml-1 font-normal text-slate-500"><span class="add px-1">绿色</span> 为新措辞</span></h2>
+          <span id="out-stats" class="text-xs text-slate-500"></span>
+        </div>
+        <div id="output-wrap" class="flex-1 overflow-y-auto px-5 py-4">
+          <p id="output" class="whitespace-pre-wrap text-[15px] leading-7 text-slate-300"></p>
+          <div id="empty-state" class="h-full grid place-items-center text-center text-slate-600">
+            <div>
+              <svg class="w-10 h-10 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z"/></svg>
+              <p class="text-sm">改写结果会出现在这里</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <p class="text-center text-xs text-slate-600">发送前请核对数字、日期与姓名 —— 模型偶有措辞级偏差 · 提示:Ctrl + Enter 运行</p>
+  </main>
+</div>
+
+<div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-slate-200 shadow-xl"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const draftEl = $("draft"), outputEl = $("output"), emptyEl = $("empty-state");
+const btnRun = $("btn-run"), btnCopy = $("btn-copy"), btnClear = $("btn-clear"), btnSample = $("btn-sample");
+let running = false, lastRewrite = "";
+
+draftEl.value = localStorage.getItem("humanizer-draft") || "";
+updateCount();
+
+draftEl.addEventListener("input", () => { localStorage.setItem("humanizer-draft", draftEl.value); updateCount(); });
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run(); });
+btnRun.addEventListener("click", run);
+btnClear.addEventListener("click", () => { draftEl.value = ""; localStorage.removeItem("humanizer-draft"); updateCount(); showOutput(""); });
+btnCopy.addEventListener("click", () => navigator.clipboard.writeText(lastRewrite).then(() => toast("已复制到剪贴板")));
+btnSample.addEventListener("click", fillSample);
+
+// 健康检查
+async function pollHealth() {
+  try {
+    const r = await fetch("/health"); const j = await r.json();
+    const ok = j.status === "ok";
+    $("health-dot").className = `w-2 h-2 rounded-full ${ok ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`;
+    $("health-text").textContent = ok ? "模型就绪" : "模型加载中…";
+  } catch { $("health-dot").className = "w-2 h-2 rounded-full bg-rose-500"; $("health-text").textContent = "服务未连接"; }
+}
+pollHealth(); setInterval(pollHealth, 5000);
+
+function updateCount() { $("draft-count").textContent = draftEl.value.length + " 字"; }
+
+function showOutput(html, {caret=false} = {}) {
+  emptyEl.classList.toggle("hidden", !!html);
+  outputEl.innerHTML = html;
+  outputEl.classList.toggle("caret", caret);
+}
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.remove("hidden");
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.add("hidden"), 2200);
+}
+
+function fillSample() {
+  draftEl.value = `Hi Nadia,
+
+I'm handing off the Meridian Bank loan audit to you. We've completed the review of 88 files, with 12 files remaining. The outstanding files are in the "Pending Review" folder in the Meridian Bank audit workspace, organized by borrower name.
+
+The remaining items are primarily commercial real estate loans and include several files requiring confirmation of updated income statements, collateral valuations, and covenant documentation. I've flagged the missing items in the audit tracker and added notes for the files that may need follow-up with Meridian Bank's loan operations team.
+
+The deadline is Friday, March 14. Please prioritize the files marked "High" in the tracker, especially MB-2047, MB-2091, and MB-2110, since those are scheduled for management review first. I'll be available through Wednesday afternoon to answer questions or provide context on any earlier decisions.
+
+Thanks for taking this over.`;
+  localStorage.setItem("humanizer-draft", draftEl.value); updateCount();
+}
+
+function setRunning(on) {
+  running = on;
+  btnRun.disabled = on; btnCopy.disabled = on || !lastRewrite;
+  $("run-spinner").classList.toggle("hidden", !on);
+  $("run-icon").classList.toggle("hidden", on);
+  $("run-label").textContent = on ? "润化中…" : "润 化";
+}
+
+function requestBody() {
+  const body = { text: draftEl.value };
+  const seed = $("opt-seed").value.trim();
+  if (seed !== "") body.seed = Number(seed);
+  return body;
+}
+
+async function run() {
+  if (running) return;
+  const text = draftEl.value.trim();
+  if (!text) { toast("请先粘贴草稿"); draftEl.focus(); return; }
+  const stream = $("opt-stream").checked;
+  setRunning(true); showOutput("", {caret: stream});
+  const t0 = performance.now();
+
+  try {
+    if (stream) {
+      const res = await fetch("/humanize/stream", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(requestBody()),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      let acc = "";
+      const reader = res.body.getReader(), dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, {stream: true});
+        for (const line of buf.split("\n\n").slice(0, -1)) {
+          const payload = line.replace(/^data: /, "").trim();
+          if (!payload) continue;
+          if (payload === "[DONE]") continue;
+          const j = JSON.parse(payload);
+          if (j.error) throw new Error(j.error);
+          if (j.delta) { acc += j.delta; outputEl.textContent = acc; outputEl.scrollTop = 1e9; }
+        }
+        buf = buf.split("\n\n").slice(-1)[0];
+      }
+      finish(acc);
+    } else {
+      const res = await fetch("/humanize", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(requestBody()),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      const j = await res.json();
+      finish(j.rewrite, j);
+    }
+  } catch (err) {
+    showOutput("");
+    toast("出错了:" + err.message);
+  } finally { setRunning(false); }
+
+  function finish(rewrite, meta) {
+    lastRewrite = rewrite.trim();
+    const secs = meta?.seconds ?? (performance.now() - t0) / 1000;
+    $("out-stats").textContent =
+      `${lastRewrite.length} 字 · ${secs.toFixed(1)} s${meta ? ` · ${meta.attempts} 次采样` : ""}`;
+    showOutput(highlight(rewrite.trim(), text));
+    btnCopy.disabled = false;
+  }
+}
+
+/* ---------- 差异高亮: 改写结果中"新"的词标绿 ---------- */
+const isCJK = ch => /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/.test(ch);
+
+function tokenize(s) {
+  // 中文字符逐字切, 拉丁词按词切, 空白归并
+  const tokens = []; let buf = "", latin = null;
+  for (const ch of s) {
+    const c = isCJK(ch) ? "cjk" : (/[\w'’-]/.test(ch) ? "latin" : "other");
+    if (c === "other") { if (buf) { tokens.push(buf); buf = ""; } tokens.push(ch); latin = null; continue; }
+    if (c !== latin && buf) { tokens.push(buf); buf = ""; }
+    latin = c; buf += ch;
+  }
+  if (buf) tokens.push(buf);
+  return tokens;
+}
+
+function normalize(t) { return t.toLowerCase(); }
+
+// LCS 对齐, 标出改写侧"新增"的 token (在草稿中找不到对应位置)
+function addedMask(draft, rewrite) {
+  const A = tokenize(draft).map(normalize), B = tokenize(rewrite);
+  const Bn = B.map(normalize);
+  const n = A.length, m = Bn.length;
+  const dp = new Int32Array((n + 1) * (m + 1));
+  const W = m + 1;
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i * W + j] = A[i] === Bn[j] ? dp[(i + 1) * W + j + 1] + 1
+                                     : Math.max(dp[(i + 1) * W + j], dp[i * W + j + 1]);
+  const mask = new Array(m).fill(true);          // 默认算新增
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (A[i] === Bn[j]) { mask[j] = false; i++; j++; }
+    else if (dp[(i + 1) * W + j] >= dp[i * W + j + 1]) i++;
+    else j++;
+  }
+  return {tokens: B, mask};
+}
+
+function esc(s) { return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+function highlight(rewrite, draft) {
+  const {tokens, mask} = addedMask(draft, rewrite);
+  // 相邻新增 token 连成一片, 减少碎片
+  let html = "", run = "";
+  for (let k = 0; k < tokens.length; k++) {
+    if (mask[k]) run += esc(tokens[k]);
+    else { if (run) html += `<span class="add">${run}</span>`, run = ""; html += esc(tokens[k]); }
+  }
+  if (run) html += `<span class="add">${run}</span>`;
+  return html;
+}
+</script>
+</body>
+</html>
