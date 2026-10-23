@@ -33,13 +33,41 @@ MAX_LANG_RETRIES = 3           # 英文稿混入中文时最多采样 3 次 (AGE
 # prompt_format.json 里的自校验指纹: sha256(prompt for draft "X") 前 16 位
 PROMPT_FINGERPRINT = "cc51d66b4c593fbe"
 
+# 写作身份。default 保持官方 prompt 逐字节不变 (指纹校验针对它);
+# 其余身份在指令区末尾追加一句英文 voice 描述, 草稿与分隔符结构不动。
+IDENTITIES: dict[str, str | None] = {
+    "default": None,
+    "customer_service": "a patient, warm customer-service agent replying to a customer",
+    "colleague": "a colleague giving teammates a quick, candid work update",
+    "reporting_to_boss": "an employee giving their manager a respectful, well-organized progress report",
+    "product_manager": "a product manager writing clearly and pragmatically about plans and trade-offs",
+    "developer": "a software developer writing terse, direct, technical messages",
+    "hr": "an HR specialist writing friendly yet professional notices to employees",
+    "sales": "a salesperson writing an enthusiastic, helpful follow-up without being pushy",
+    "teacher": "a teacher explaining things plainly to students and parents",
+    "student": "a student writing a straightforward essay or homework answer",
+    "lawyer": "a lawyer writing precise, measured, formal prose",
+    "doctor": "a doctor explaining conditions and advice in plain, reassuring language",
+    "journalist": "a journalist writing factual, vivid reportage",
+    "blogger": "a Chinese content blogger (Zhihu/WeChat) with a personal, conversational voice",
+    "social_media": "a lively Chinese social-media poster (Xiaohongshu/Weibo) with a casual, punchy voice",
+    "forum_user": "a candid, helpful forum answerer sharing first-hand experience",
+    "ecommerce_seller": "an online-store owner replying to a customer review or question",
+    "founder": "a founder writing an honest, energizing note to the team or customers",
+    "friend": "a friend writing to a friend, completely casual",
+    "government": "a government-office staffer writing formal official-document prose",
+    "academic": "an academic researcher writing formal scholarly prose",
+}
+
 with open(os.path.join(MODEL_PATH, "prompt_format.json"), encoding="utf-8") as f:
     _PF = json.load(f)
 INSTR, SEP = _PF["instr"], _PF["sep"]
 
 
-def build_prompt(draft: str) -> str:
-    return INSTR + "\n\n" + draft.strip() + SEP
+def build_prompt(draft: str, identity: str = "default") -> str:
+    voice = IDENTITIES.get(identity, IDENTITIES["default"])
+    instr = INSTR if voice is None else INSTR + f"\n\nWrite it in the voice of {voice}."
+    return instr + "\n\n" + draft.strip() + SEP
 
 
 assert (
@@ -97,6 +125,7 @@ app = FastAPI(title="humanizer API", version="1.0.0", lifespan=lifespan)
 
 class HumanizeRequest(BaseModel):
     text: str = Field(min_length=1, description="AI 写的草稿, 中英文均可")
+    identity: str = Field(default="default", description=f"写作身份: {', '.join(IDENTITIES)}")
     max_new_tokens: int | None = Field(
         default=None, ge=1, le=4096,
         description="缺省按草稿长度的 2.5 倍收在 [256, 2048]")
@@ -105,6 +134,7 @@ class HumanizeRequest(BaseModel):
 
 class HumanizeResponse(BaseModel):
     rewrite: str
+    identity: str
     attempts: int
     tokens_generated: int
     seconds: float
@@ -139,8 +169,11 @@ def _generate_once(prompt: str, max_new_tokens: int, seed: int | None,
     return TOK.decode(out[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip(), new_tokens
 
 
-def _humanize(text: str, max_new_tokens: int | None, seed: int | None):
-    prompt = build_prompt(text)
+def _humanize(text: str, identity: str, max_new_tokens: int | None, seed: int | None):
+    if identity not in IDENTITIES:
+        raise HTTPException(status_code=400,
+                            detail=f"未知身份 {identity!r}, 可选: {', '.join(IDENTITIES)}")
+    prompt = build_prompt(text, identity)
     prompt_len = len(TOK(prompt)["input_ids"])
     if prompt_len + 1 > CONTEXT_TOKENS:
         raise HTTPException(
@@ -175,14 +208,19 @@ def index():
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 
 
+@app.get("/identities")
+def identities():
+    return {"default": "default", "identities": IDENTITIES}
+
+
 @app.post("/humanize", response_model=HumanizeResponse)
 async def humanize(req: HumanizeRequest):
     if state["model"] is None:
         raise HTTPException(status_code=503, detail="模型还在加载")
     # 单卡单模型, 请求串行执行; 丢到线程池避免阻塞事件循环 (锁在线程里同步持有)
     rewrite, attempts, n_tokens, seconds = await anyio.to_thread.run_sync(
-        lambda: _with_lock(_humanize, req.text, req.max_new_tokens, req.seed))
-    return HumanizeResponse(rewrite=rewrite, attempts=attempts,
+        lambda: _with_lock(_humanize, req.text, req.identity, req.max_new_tokens, req.seed))
+    return HumanizeResponse(rewrite=rewrite, identity=req.identity, attempts=attempts,
                             tokens_generated=n_tokens, seconds=round(seconds, 2))
 
 
@@ -192,7 +230,9 @@ async def humanize_stream(req: HumanizeRequest):
     if state["model"] is None:
         raise HTTPException(status_code=503, detail="模型还在加载")
 
-    prompt = build_prompt(req.text)
+    if req.identity not in IDENTITIES:
+        raise HTTPException(status_code=400, detail=f"未知身份 {req.identity!r}")
+    prompt = build_prompt(req.text, req.identity)
     prompt_len = len(TOK(prompt)["input_ids"])
     if prompt_len + 1 > CONTEXT_TOKENS:
         raise HTTPException(status_code=413, detail=f"草稿太长: prompt {prompt_len} tokens")

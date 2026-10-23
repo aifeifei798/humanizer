@@ -59,7 +59,11 @@ tailwind.config = {
       <button id="btn-copy" class="rounded-xl border border-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/60 transition disabled:opacity-40" disabled>复制结果</button>
       <button id="btn-clear" class="rounded-xl border border-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/60 transition">清空</button>
 
-      <label class="ml-auto flex items-center gap-2 text-sm text-slate-300 select-none cursor-pointer">
+      <label class="ml-auto flex items-center gap-2 text-sm text-slate-300">
+        身份
+        <select id="opt-identity" class="rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500 focus:outline-none"></select>
+      </label>
+      <label class="flex items-center gap-2 text-sm text-slate-300 select-none cursor-pointer">
         <input id="opt-stream" type="checkbox" checked class="accent-emerald-500 w-4 h-4">流式输出
       </label>
       <label class="flex items-center gap-2 text-sm text-slate-400">
@@ -109,6 +113,34 @@ const $ = id => document.getElementById(id);
 const draftEl = $("draft"), outputEl = $("output"), emptyEl = $("empty-state");
 const btnRun = $("btn-run"), btnCopy = $("btn-copy"), btnClear = $("btn-clear"), btnSample = $("btn-sample");
 let running = false, lastRewrite = "";
+
+/* 身份下拉: default 必须放最前, 其余按常用度排列 */
+const IDENTITIES = [
+  ["default", "默认"],
+  ["customer_service", "客服"],
+  ["colleague", "同事 / 打工人"],
+  ["reporting_to_boss", "向上汇报"],
+  ["friend", "朋友闲聊"],
+  ["developer", "程序员"],
+  ["product_manager", "产品经理"],
+  ["hr", "人事 HR"],
+  ["sales", "销售"],
+  ["teacher", "老师"],
+  ["student", "学生"],
+  ["lawyer", "律师"],
+  ["doctor", "医生"],
+  ["journalist", "记者"],
+  ["blogger", "知乎 / 公众号博主"],
+  ["social_media", "小红书 / 微博博主"],
+  ["forum_user", "论坛网友"],
+  ["ecommerce_seller", "电商卖家回复"],
+  ["founder", "创业者"],
+  ["government", "机关公文"],
+  ["academic", "学术作者"],
+];
+$("opt-identity").innerHTML = IDENTITIES.map(([v, label]) => `<option value="${v}">${label}</option>`).join("");
+$("opt-identity").value = localStorage.getItem("humanizer-identity") || "default";
+$("opt-identity").addEventListener("change", e => localStorage.setItem("humanizer-identity", e.target.value));
 
 draftEl.value = localStorage.getItem("humanizer-draft") || "";
 updateCount();
@@ -166,7 +198,7 @@ function setRunning(on) {
 }
 
 function requestBody() {
-  const body = { text: draftEl.value };
+  const body = { text: draftEl.value, identity: $("opt-identity").value };
   const seed = $("opt-seed").value.trim();
   if (seed !== "") body.seed = Number(seed);
   return body;

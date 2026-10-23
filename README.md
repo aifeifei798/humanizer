@@ -20,7 +20,8 @@ uv run uvicorn server:app --host 127.0.0.1 --port 8100
 ![客户端界面:左边草稿,右边改写,新增措辞绿色高亮](static/img/screenshot.png)
 
 服务启动后直接打开 `http://127.0.0.1:8100/`:左边草稿、右边改写(新增措辞绿色高亮),
-支持流式逐字输出、可选随机种子、一键示例、复制,草稿自动存 localStorage,Ctrl+Enter 运行。
+支持**写作身份**(21 个:默认、客服、同事、向上汇报、程序员、HR、知乎博主、机关公文等)、
+流式逐字输出、可选随机种子、一键示例、复制,草稿和身份自动存 localStorage,Ctrl+Enter 运行。
 Tailwind CSS 已下载到 `static/vendor/`,离线可用。
 
 ## 接口
@@ -30,6 +31,7 @@ Tailwind CSS 已下载到 `static/vendor/`,离线可用。
 ```json
 {
   "text": "AI 写的草稿,中英文均可",
+  "identity": "customer_service", // 可选,写作身份,见 GET /identities;缺省 default
   "max_new_tokens": 2048,          // 可选,缺省按草稿 token 数的 2.5 倍收在 [256, 2048]
   "seed": 42                       // 可选,固定随机种子以便复现
 }
@@ -38,11 +40,17 @@ Tailwind CSS 已下载到 `static/vendor/`,离线可用。
 返回:
 
 ```json
-{"rewrite": "改写结果", "attempts": 1, "tokens_generated": 217, "seconds": 12.44}
+{"rewrite": "改写结果", "identity": "customer_service", "attempts": 1, "tokens_generated": 217, "seconds": 12.44}
 ```
 
 - 请求串行执行(单卡单模型),超长草稿(prompt 超 8192 token)返回 413,请拆分后分段调用。
 - 英文稿若改写结果混入大段中文,会自动用相同设置重采样,最多 3 次(AGENTS.md 建议的行为)。
+
+### `GET /identities`
+
+返回全部写作身份。实现方式:`default` 保持官方 prompt 逐字节不变(启动时指纹校验针对它);
+其余身份在指令区末尾追加一句英文 `Write it in the voice of …`,草稿与分隔符结构不动——
+这偏离了模型作者要求的逐字节 prompt,实测可用,但效果以 `default` 为准。
 
 ### `POST /humanize/stream`
 
