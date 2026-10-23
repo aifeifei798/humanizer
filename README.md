@@ -87,3 +87,10 @@ uv run python tests/selftest.py    # 服务启动后运行,用官方评估集的
 
 模型仍可能改动细节(官方评测:英文改写 376/420 无事实问题,出错时 9 成为单个词)。
 **发送前务必人工核对数字、日期、姓名和每个论断的方向。**
+
+## License
+
+Apache License 2.0(见 [LICENSE](LICENSE))。所用的 humanizer 模型
+([jialinyyzz/humanizer](https://huggingface.co/jialinyyzz/humanizer))权重与其基座
+[google/gemma-4-12B](https://huggingface.co/google/gemma-4-12B) 均为 Apache 2.0,
+本项目代码沿用同一协议。
